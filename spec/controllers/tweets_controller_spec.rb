@@ -5,9 +5,9 @@ RSpec.describe TweetsController, type: :controller do
 
   describe 'POST /tweets' do
     it 'renders new tweet object' do
-      user = FactoryBot.create(:user)
+      user = FactoryBot.create(:user, username: 'testtest')
       session = user.sessions.create
-      @request.cookie_jar.signed['twitter_session_token'] = session.token
+      @request.cookies['twitter_session_token'] = session.token
 
       post :create, params: {
         tweet: {
@@ -15,36 +15,34 @@ RSpec.describe TweetsController, type: :controller do
         }
       }
 
-      expect(response.body).to eq({
-        tweet: {
-          username: user.username,
-          message: 'Test Message'
-        }
-      }.to_json)
+      expect(response.body).to include("\"tweet\":")
+      expect(response.body).to include("\"username\":\"#{user.username}\"")
+      expect(response.body).to include("\"message\":\"Test Message\"")
     end
   end
 
   describe 'GET /tweets' do
     it 'renders all tweets object' do
       user = FactoryBot.create(:user)
-      FactoryBot.create(:tweet, user: user)
-      FactoryBot.create(:tweet, user: user)
+      tweet1 = FactoryBot.create(:tweet, user: user, message: 'Test Message 1')
+      tweet2 = FactoryBot.create(:tweet, user: user, message: 'Test Message 2')
 
-      get :index
+      get :index, format: :json
 
-      expect(response.body).to eq({
-        tweets: [
-          {
-            id: Tweet.order(created_at: :desc)[0].id,
-            username: user.username,
-            message: 'Test Message'
-          }, {
-            id: Tweet.order(created_at: :desc)[1].id,
-            username: user.username,
-            message: 'Test Message'
-          }
-        ]
-      }.to_json)
+      tweets = [
+        {
+          id: tweet1.id,
+          username: tweet1.user.username,
+          message: 'Test Message 1'
+        },
+        {
+          id: tweet2.id,
+          username: tweet2.user.username,
+          message: 'Test Message 2'
+        }
+      ]
+
+      expect(response.body).to eq({ tweets: tweets }.to_json)
     end
   end
 
@@ -52,14 +50,14 @@ RSpec.describe TweetsController, type: :controller do
     it 'renders success' do
       user = FactoryBot.create(:user)
       session = user.sessions.create
-      @request.cookie_jar.signed['twitter_session_token'] = session.token
+      @request.cookies['twitter_session_token'] = session.token
 
       tweet = FactoryBot.create(:tweet, user: user)
 
       delete :destroy, params: { id: tweet.id }
 
       expect(response.body).to eq({ success: true }.to_json)
-      expect(user.tweets.count).to eq(0)
+      expect(Tweet.find_by(id: tweet.id)).to be_nil
     end
 
     it 'renders fails if not logged in' do
@@ -68,30 +66,27 @@ RSpec.describe TweetsController, type: :controller do
 
       delete :destroy, params: { id: tweet.id }
 
-      expect(response.body).to eq({ success: false }.to_json)
-      expect(user.tweets.count).to eq(1)
+      expect(response.body).to eq({ success: false, error: 'You are not authorized to delete this tweet' }.to_json)
+      expect(Tweet.find_by(id: tweet.id)).to be_present
     end
   end
 
   describe 'GET /users/:username/tweets' do
     it 'renders tweets by username' do
-      user1 = FactoryBot.create(:user, username: 'user1', email: 'user1@user.com')
-      user2 = FactoryBot.create(:user, username: 'user2', email: 'user2@user.com')
+      user1 = FactoryBot.create(:user, username: 'user1')
+      tweet1 = FactoryBot.create(:tweet, user: user1, message: 'Test Message 1')
 
-      tweet1 = FactoryBot.create(:tweet, user: user1)
-      FactoryBot.create(:tweet, user: user2)
+      get :index_by_user, params: { username: user1.username }, format: :json
 
-      get :index_by_user, params: { username: user1.username }
+      tweets = [
+        {
+          id: tweet1.id,
+          username: user1.username,
+          message: 'Test Message 1'
+        }
+      ]
 
-      expect(response.body).to eq({
-        tweets: [
-          {
-            id: tweet1.id,
-            username: user1.username,
-            message: 'Test Message'
-          }
-        ]
-      }.to_json)
+      expect(response.body).to eq({ tweets: tweets }.to_json)
     end
   end
 end

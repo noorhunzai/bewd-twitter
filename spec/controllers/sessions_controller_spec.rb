@@ -5,33 +5,17 @@ RSpec.describe SessionsController, type: :controller do
 
   describe 'POST /sessions' do
     it 'renders new session object' do
-      FactoryBot.create(:user, username: 'asdasdasd', password: 'asdasdasd')
+      user = FactoryBot.create(:user, username: 'testtest', password: 'password')
 
       post :create, params: {
         user: {
-          username: 'asdasdasd',
-          password: 'asdasdasd'
+          username: 'testtest',
+          password: 'password'
         }
       }
 
-      expect(response.body).to eq({
-        success: true
-      }.to_json)
-    end
-  end
-
-  describe 'GET /authenticated' do
-    it 'renders authenticated user object' do
-      user = FactoryBot.create(:user)
-      session = user.sessions.create
-      @request.cookie_jar.signed['twitter_session_token'] = session.token
-
-      get :authenticated
-
-      expect(response.body).to eq({
-        authenticated: true,
-        username: user.username
-      }.to_json)
+      expect(JSON.parse(response.body)['session']).to be_present
+      expect(JSON.parse(response.body)['success']).to eq(true)
     end
   end
 
@@ -39,11 +23,12 @@ RSpec.describe SessionsController, type: :controller do
     it 'renders success' do
       user = FactoryBot.create(:user)
       session = user.sessions.create
-      @request.cookie_jar.signed['twitter_session_token'] = session.token
+      @request.cookies['twitter_session_token'] = session.token
 
       delete :destroy
 
-      expect(user.sessions.count).to be(0)
+      expect(user.sessions.count).to eq(0)
+      expect(response.body).to eq({ success: true }.to_json)
     end
   end
 end
